@@ -104,122 +104,201 @@ GND         ↔  GND
 | 接口 | UART, I2C, SPI, USB |
 | 支持算法 | 颜色追踪、人脸检测、二维码识别等 |
 
-### 2.3 接口设计
-
-```
-ESP32主控 ←→ I2C/SPI ←→ 摄像头模块
-            ↓
-        图像数据
-            ↓
-      边缘计算处理
-            ↓
-        控制决策
-```
-
 ---
 
 ## 3. 软件架构
 
-### 3.1 系统分层
+### 3.1 系统分层（基于OpenMV+ESP32架构）
 
 ```
 ┌─────────────────────────────────────┐
-│      应用层 (Application)            │
-│  - 目标追踪                        │
-│  - 自主导航                        │
-│  - 姿态识别                        │
+│          PC端（控制软件）            │
+│  - Web浏览器 / 桌面应用              │
+│  - 图像显示与控制界面               │
+│  - 高级算法处理（可选）              │
 └─────────────────────────────────────┘
-              ↓
+                  ↓ WiFi (WebSocket)
 ┌─────────────────────────────────────┐
-│      算法层 (Algorithm)              │
-│  - 图像处理 (OpenCV)               │
-│  - 特征提取                        │
-│  - 目标检测                        │
+│           ESP32 主控层               │
+│  - WiFi通信 (WebSocket Server)      │
+│  - UART串口通信 (OpenMV指令)        │
+│  - 六足运动控制                     │
+│  - 云台舵机控制                     │
 └─────────────────────────────────────┘
-              ↓
+                  ↓ UART串口
 ┌─────────────────────────────────────┐
-│      驱动层 (Driver)                │
-│  - 摄像头驱动                       │
-│  - 图像采集                        │
-│  - 帧缓冲管理                      │
+│        OpenMV4 H7 Plus 视觉层        │
+│  - 图像采集与预处理                 │
+│  - 视觉算法（颜色追踪等）           │
+│  - 串口通信（数据上报）             │
+└─────────────────────────────────────┘
+                  ↓ 舵机拓展板
+┌─────────────────────────────────────┐
+│          云台舵机执行层              │
+│  - 水平舵机控制                     │
+│  - 垂直舵机控制                     │
 └─────────────────────────────────────┘
 ```
 
 ### 3.2 技术栈
 
-**嵌入式端**：
-- C/C++ for ESP32
-- esp-camera 驱动库
-- FreeRTOS 任务管理
-- OpenMV (可选)
+**ESP32端**：
+- C/C++ (Arduino框架)
+- WebSocket 通信
+- UART串口通信
+- 舵机控制（PCA9685/PWM）
 
-**PC端（辅助计算）**：
-- Python 3.8+
-- OpenCV 4.x
-- TensorFlow Lite / PyTorch
-- ROS (机器人操作系统)
+**OpenMV端**：
+- MicroPython
+- OpenMV IDE 开发环境
+- 内置视觉库（颜色追踪、特征检测）
+- UART串口通信
+
+**PC端**：
+- Web浏览器 / Python桌面应用
+- WebSocket客户端
+- 图像显示与处理
+
+### 3.3 数据流设计
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                              数据流方向                                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  OpenMV → 图像数据 → UART → ESP32 → WebSocket → PC (图像显示)         │
+│       ← 指令       ←      ←       ←      ←                           │
+│                                                                      │
+│  PC → 控制指令 → WebSocket → ESP32 → UART → OpenMV (云台控制)         │
+│                                              ↓                       │
+│                                        舵机拓展板                      │
+│                                              ↓                       │
+│                                        云台舵机动作                    │
+│                                                                      │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## 4. 功能模块
 
-### 4.1 图像采集模块
+### 4.1 OpenMV端功能
 
-- [ ] 摄像头初始化配置
-  - [ ] 分辨率设置
-  - [ ] 帧率调节
-  - [ ] 白平衡/曝光
+- [ ] 图像采集与预处理
+  - [ ] 分辨率设置 (QVGA/VGA)
+  - [ ] 帧率调节 (10-60fps)
+  - [ ] 自动曝光/白平衡
 
-- [ ] 图像传输
-  - [ ] WiFi实时流
-  - [ ] UART串口传输（压缩）
-  - [ ] SD卡存储
+- [ ] 视觉算法处理
+  - [ ] 颜色追踪（HSV阈值）
+  - [ ] 人脸检测
+  - [ ] 二维码识别
+  - [ ] 特征点检测
 
-### 4.2 基础视觉处理
+- [ ] 串口通信
+  - [ ] 数据上报（坐标、目标信息）
+  - [ ] 指令接收（云台控制、参数配置）
 
-- [ ] 颜色空间转换
-- [ ] 图像滤波（去噪）
-- [ ] 边缘检测
-- [ ] 轮廓提取
+### 4.2 ESP32端功能
 
-### 4.3 目标检测与追踪
+- [ ] 串口通信（与OpenMV）
+  - [ ] 数据解析与转发
+  - [ ] 指令封装与发送
 
-- [ ] 颜色追踪
-  - [ ] 颜色阈值标定
-  - [ ] 目标中心计算
-  - [ ] 追踪算法实现
+- [ ] WebSocket通信（与PC）
+  - [ ] 图像数据转发
+  - [ ] 控制指令接收
 
-- [ ] 形状识别
-  - [ ] 圆形/矩形检测
-  - [ ] 模板匹配
-  - [ ] 特征描述符
+- [ ] 云台舵机控制
+  - [ ] 水平/垂直角度控制
+  - [ ] 速度限制与平滑
 
-### 4.4 自主导航
+- [ ] 六足运动控制
+  - [ ] 基于视觉反馈的运动调整
+  - [ ] 目标追踪联动
 
-- [ ] 障碍物检测
-- [ ] 深度估计（单目/双目）
-- [ ] 路径规划
-- [ ] 视觉里程计
+### 4.3 PC端功能
+
+- [ ] 图像显示
+  - [ ] 实时视频流展示
+  - [ ] 目标标记与追踪框
+
+- [ ] 参数配置
+  - [ ] 颜色阈值调整
+  - [ ] 追踪参数设置
+
+- [ ] 云台控制
+  - [ ] 手动控制云台角度
+  - [ ] 自动追踪模式切换
 
 ---
 
-## 5. 目标追踪实现
+## 5. 目标追踪实现（基于OpenMV）
 
 ### 5.1 系统框图
 
 ```
-摄像头 → 颜色空间转换 → 颜色阈值分割 → 形态学处理
-                                            ↓
-                                    轮廓提取与筛选
-                                            ↓
-                                    目标中心定位
-                                            ↓
-                                    PID控制输出
-                                            ↓
-                                    机器人运动控制
+OpenMV摄像头 → 图像采集 → HSV颜色空间转换 → 颜色阈值分割
+                                                ↓
+                                        轮廓提取与面积筛选
+                                                ↓
+                                        目标中心坐标计算
+                                                ↓
+                                        UART串口发送 → ESP32
+                                                ↓
+                                        WebSocket转发 → PC显示
 ```
 
-### 5.2 关键参数
+### 5.2 OpenMV核心代码结构
+
+```python
+# main.py (OpenMV端)
+import sensor, image, time, pyb
+
+# 初始化摄像头
+sensor.reset()
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QVGA)
+sensor.skip_frames(time=2000)
+
+# 初始化串口
+uart = pyb.UART(3, 115200, timeout_char=1000)
+
+# 颜色阈值配置 (红色示例)
+red_threshold = (30, 100, 15, 127, 15, 127)
+
+while(True):
+    img = sensor.snapshot()
+    
+    # 颜色追踪
+    blobs = img.find_blobs([red_threshold])
+    
+    if blobs:
+        largest_blob = max(blobs, key=lambda b: b.area())
+        img.draw_rectangle(largest_blob.rect())
+        img.draw_cross(largest_blob.cx(), largest_blob.cy())
+        
+        # 发送目标坐标
+        cx = largest_blob.cx()
+        cy = largest_blob.cy()
+        uart.write(f"TARGET,{cx},{cy}\r\n")
+    else:
+        uart.write("NO_TARGET\r\n")
+    
+    time.sleep_ms(50)
+```
+
+### 5.3 ESP32串口指令协议
+
+| 指令类型 | 格式 | 说明 |
+|----------|------|------|
+| 目标数据 | `TARGET,<cx>,<cy>` | OpenMV发送目标中心坐标 |
+| 无目标 | `NO_TARGET` | 未检测到目标 |
+| 云台控制 | `PAN,<angle>` | 设置水平角度 (0-180) |
+| 云台控制 | `TILT,<angle>` | 设置垂直角度 (0-180) |
+| 参数配置 | `THRESHOLD,<hmin>,<hmax>,<smin>,<smax>,<vmin>,<vmax>` | 设置颜色阈值 |
+
+### 5.4 关键参数
 
 ```cpp
 // 颜色阈值（可标定）
@@ -240,7 +319,7 @@ struct PIDParams {
 };
 ```
 
-### 5.3 状态机
+### 5.5 状态机
 
 ```
 IDLE → 检测到目标 → TRACKING → 目标丢失 → SEARCHING → 超时 → IDLE
@@ -250,26 +329,58 @@ IDLE → 检测到目标 → TRACKING → 目标丢失 → SEARCHING → 超时 
 
 ---
 
-## 6. 数据流设计
+## 6. 代码结构
 
-### 6.1 实时图像流
-
-```
-摄像头 → ESP32 → WiFi AP → PC浏览器
-                ↓
-            压缩JPEG
-                ↓
-         WebSocket传输
-```
-
-### 6.2 控制指令流
+### 6.1 项目目录结构
 
 ```
-PC控制软件 → WiFi → ESP32 → 运动控制
-                  ↓
-            视觉处理结果
-                  ↓
-            导航决策
+camera/
+├── openmv/                       # OpenMV端代码
+│   ├── main.py                  # 主程序（颜色追踪等）
+│   ├── config.py                # 参数配置
+│   └── utils.py                 # 工具函数
+│
+├── esp32/                        # ESP32端代码
+│   ├── openmv_comm.cpp          # OpenMV串口通信
+│   ├── gimbal_controller.cpp    # 云台舵机控制
+│   └── vision_data.h            # 数据结构定义
+│
+└── pc/                           # PC端代码
+    ├── vision_display.py        # 图像显示
+    └── control_panel.py         # 控制面板
+```
+
+### 6.2 ESP32核心代码示例
+
+```cpp
+// openmv_comm.cpp
+#include "openmv_comm.h"
+
+void OpenMVComm::begin() {
+    serialPort.begin(115200, SERIAL_8N1, 16, 17);
+}
+
+void OpenMVComm::parseData() {
+    if (serialPort.available() > 0) {
+        String data = serialPort.readStringUntil('\n');
+        data.trim();
+        
+        if (data.startsWith("TARGET")) {
+            int comma1 = data.indexOf(',');
+            int comma2 = data.indexOf(',', comma1 + 1);
+            int cx = data.substring(comma1 + 1, comma2).toInt();
+            int cy = data.substring(comma2 + 1).toInt();
+            
+            onTargetDetected(cx, cy);
+        } else if (data == "NO_TARGET") {
+            onTargetLost();
+        }
+    }
+}
+
+void OpenMVComm::sendCommand(const String& cmd) {
+    serialPort.println(cmd);
+}
 ```
 
 ---
@@ -277,81 +388,61 @@ PC控制软件 → WiFi → ESP32 → 运动控制
 ## 7. 开发计划
 
 ### Phase 1: 硬件集成 (1-2周)
-- [ ] 摄像头选型与采购
-- [ ] 硬件接口设计
-- [ ] 摄像头驱动移植
-- [ ] 图像采集测试
+- [ ] OpenMV4 H7 Plus 模块采购
+- [ ] 舵机拓展板准备
+- [ ] 串口交叉接线连接
+- [ ] 供电测试（ESP32 5V → OpenMV VIN）
+- [ ] 云台舵机安装调试
 
-### Phase 2: 基础视觉 (2-3周)
-- [ ] 颜色空间转换
-- [ ] 基础滤波算法
-- [ ] 颜色追踪实现
-- [ ] 实时流传输
+### Phase 2: 基础通信 (1-2周)
+- [ ] OpenMV端串口配置（115200波特率）
+- [ ] ESP32端串口通信实现（GPIO16/RX, GPIO17/TX）
+- [ ] 指令协议定义与测试
+- [ ] 数据解析与转发功能
 
-### Phase 3: 高级功能 (4-6周)
-- [ ] 形状识别
-- [ ] 目标检测（深度学习）
-- [ ] 自主导航算法
-- [ ] 多传感器融合
+### Phase 3: 视觉算法开发 (2-3周)
+- [ ] OpenMV颜色追踪实现
+- [ ] HSV阈值标定工具
+- [ ] 目标坐标计算与上报
+- [ ] ESP32 → PC WebSocket数据转发
 
----
+### Phase 4: 云台控制 (1-2周)
+- [ ] 舵机拓展板驱动
+- [ ] 云台水平/垂直角度控制
+- [ ] 速度限制与平滑处理
+- [ ] PC端云台控制界面
 
-## 8. 代码结构
-
-```
-camera/
-├── hardware/                    # 硬件相关
-│   ├── schematic/              # 电路原理图
-│   ├── pcb/                   # PCB设计文件
-│   └── docs/                  # 硬件手册
-│
-├── firmware/                    # ESP32固件
-│   ├── driver/                # 摄像头驱动
-│   ├── vision/                # 视觉算法
-│   │   ├── color_track.cpp   # 颜色追踪
-│   │   ├── edge_detect.cpp   # 边缘检测
-│   │   └── object_detect.cpp # 目标检测
-│   ├── network/               # 网络传输
-│   └── main.cpp               # 主程序
-│
-├── pc_software/               # PC辅助软件
-│   ├── python/                # Python版本
-│   │   ├── vision_server.py # 视觉服务
-│   │   ├── ui/               # 用户界面
-│   │   └── utils/            # 工具函数
-│   └── cpp/                  # C++版本
-│
-└── docs/                      # 开发文档
-    ├── CAMERA_SELECTION.md   # 选型指南
-    ├── API_REFERENCE.md      # API参考
-    └── TUTORIALS/            # 教程
-```
+### Phase 5: 高级功能 (3-4周)
+- [ ] 人脸检测与识别
+- [ ] 二维码识别
+- [ ] 自动追踪模式
+- [ ] 六足运动与视觉联动
 
 ---
 
-## 9. 测试计划
+## 8. 测试计划
 
-### 9.1 硬件测试
-- [ ] 摄像头初始化测试
+### 8.1 硬件测试
+- [ ] 串口通信测试（双向）
+- [ ] 供电稳定性测试
+- [ ] 舵机角度范围测试
 - [ ] 图像质量评估
-- [ ] 传输延迟测试
-- [ ] 功耗测量
 
-### 9.2 算法测试
-- [ ] 颜色追踪精度
+### 8.2 算法测试
+- [ ] 颜色追踪精度测试
 - [ ] 目标检测准确率
-- [ ] 光照适应性
+- [ ] 光照适应性测试
 - [ ] 实时性测试（FPS）
 
-### 9.3 集成测试
+### 8.3 集成测试
 - [ ] 端到端延迟测试
-- [ ] 追踪响应速度
+- [ ] 云台响应速度
 - [ ] 长时间运行稳定性
-- [ ] 多目标场景
+- [ ] PC端界面联调
 
 ---
 
-## 10. 性能指标
+## 9. 性能指标
 
 | 指标 | 目标值 | 说明 |
 |------|--------|------|
@@ -363,7 +454,7 @@ camera/
 
 ---
 
-## 11. 常见问题与解决方案
+## 10. 常见问题与解决方案
 
 ### Q1: 图像质量差
 **原因**: 光照不足或摄像头参数配置不当
@@ -388,24 +479,25 @@ camera/
 
 ---
 
-## 12. 参考资料
+## 11. 参考资料
 
-- [ESP32-CAM 官方文档](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/camera.html)
-- [OpenCV Python教程](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html)
-- [颜色追踪算法](https://docs.opencv.org/4.x/dd/d49/tutorial_py_contour_features.html)
-- [ESP32-CAM 项目集合](https://github.com/raphaelchang/esp32-camera-example)
+- [OpenMV官方文档](https://docs.openmv.io/)
+- [OpenMV教程](https://book.openmv.cc/)
+- [OpenMV GitHub](https://github.com/openmv/openmv)
+- [ESP32串口通信](https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/)
 
 ---
 
-## 13. 修改日志
+## 12. 修改日志
 
 | 日期 | 版本 | 修改内容 |
 |------|------|----------|
+| 2026-05-24 | v0.2 | 更新为OpenMV4 H7 Plus方案 |
 | 2026-05-23 | v0.1 | 初始文档创建 |
 
 ---
 
-## 14. 参与贡献
+## 13. 参与贡献
 
 欢迎提交Issue和Pull Request来改进项目！
 
