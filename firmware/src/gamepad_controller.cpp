@@ -325,19 +325,27 @@ hexapod::SpeedLevel Controller::calculateSpeedLevel(float magnitude, bool rtPres
 }
 
 int16_t Controller::leftStickXToSigned(int16_t raw) const {
-    return raw - 32767;
+    // 将0-65535范围转换为-32768到32767
+    // 正确方法：减去中间值32768
+    return static_cast<int16_t>(raw - 32768);
 }
 
 int16_t Controller::leftStickYToSigned(int16_t raw) const {
-    return raw - 32767;
+    // 将0-65535范围转换为-32768到32767
+    // 正确方法：减去中间值32768
+    return static_cast<int16_t>(raw - 32768);
 }
 
 int16_t Controller::rightStickXToSigned(int16_t raw) const {
-    return raw - 32767;
+    // 将0-65535范围转换为-32768到32767
+    // 正确方法：减去中间值32768
+    return static_cast<int16_t>(raw - 32768);
 }
 
 int16_t Controller::rightStickYToSigned(int16_t raw) const {
-    return raw - 32767;
+    // 将0-65535范围转换为-32768到32767
+    // 正确方法：减去中间值32768
+    return static_cast<int16_t>(raw - 32768);
 }
 
 const MotionCommand& getMotionCommand() {
