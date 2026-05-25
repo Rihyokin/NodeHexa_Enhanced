@@ -1,12 +1,10 @@
-# 🤖 NodeHexa - 六足机器人（支持四足构型）
-
-[English README](README_EN.md)
+# NodeHexa - Enhanced
 
 <div align="center">
 
 ![NodeHexa Logo](resource/frontal.jpg)
 
-**一个基于 ESP32 的六足机器人项目，同时额外支持四足构型固件；支持 Web 控制、校准、表演动作与动作序列**
+**基于 ESP32 的六足机器人项目增强版 — 集成 Xbox 蓝牙手柄、OpenMV 视觉模块与 PyQt5 桌面控制应用**
 
 [![Platform](https://img.shields.io/badge/Platform-ESP32-blue.svg)](https://www.espressif.com/en/products/socs/esp32)
 [![Framework](https://img.shields.io/badge/Framework-Arduino-green.svg)](https://www.arduino.cc/)
@@ -15,261 +13,168 @@
 
 </div>
 
-## 📖 项目简介
+---
 
-NodeHexa 是一个开源的六足机器人项目，基于 ESP32 微控制器开发。项目集成了运动学算法、Web 界面控制、实时校准与动作序列（运动规划）能力，面向机器人爱好者与研究用途。
+## 增强功能概览
 
-## 🧩 支持的构型
+NodeHexa-Enhanced 在原始 NodeHexa 六足机器人项目基础上，新增三大增强模块：
 
-当前代码仓库同时提供 **四足构型固件** 支持，便于共用一套 Web UI、校准与运动控制框架。
+| 模块 | 说明 | 详细文档 |
+|---|---|---|
+| **Xbox 蓝牙手柄** | BLE 无线控制，摇杆/扳机/按钮全映射 | [XBOX_GAMEPAD_DEVELOPMENT.md](XBOX_GAMEPAD_DEVELOPMENT.md) |
+| **OpenMV 视觉模块** | 实时图像采集，WiFi 图传至桌面应用 | [CHANGELOG_OPENMV_INTEGRATION.md](CHANGELOG_OPENMV_INTEGRATION.md) |
+| **桌面控制应用** | PyQt5 GUI，实时画面显示 + 键鼠操控 | [DESKTOP_CONTROL_SOFTWARE.md](DESKTOP_CONTROL_SOFTWARE.md) |
 
-| 构型 | 定位 | 支持范围 | 文档/图片现状 |
-| --- | --- | --- | --- |
-| **六足（Hexapod / NodeHexa）** | 主线 | 结构/硬件/固件/界面/教程 | 本 README 的示意图主要为六足；软硬件设计完全开源 |
-| **四足（Quadruped / NodeQuadMini）** | 额外支持 | 结构/原理图/固件/界面 | 本 README 已包含四足展示图；硬件侧提供原理图参考（PCB 未开源）；待更新教程 |
+---
 
-> 结构件与紧固件差异：见 `mechanism/README.md`（已按六足/四足分别列出）。
+## 1. Xbox 蓝牙手柄控制
 
-## ✨ 核心特性
+通过 BLE 蓝牙连接 Xbox Series X|S 手柄，实现对机器人的无线操控。
 
-### 🧩 双构型支持（六足为主，四足为额外支持）
-- **统一抽象接口** - 六足/四足共用控制与 Web 框架
-- **构型差异隔离** - 六足与四足分别实现，互不影响主线功能演进
+### 已实现功能
 
-### 🎮 多种控制方式
-- **Web界面控制** - 通过浏览器实时控制机器人运动
-- **串口通信** - 支持UART2串口指令控制（调试和外接上位机用）
-- **WebSocket通信** - 低延迟的实时数据传输
-- **语音拓展（可选）** - 支持接入“小智 AI 拓展板”，实现语音交互控制
+- **蓝牙连接** — 自动配对与断线重连
+- **摇杆控制** — 左摇杆转向，右摇杆前后/左右移动
+- **扳机调速** — RT 按下 = 极速模式，松开 = 中速；RB 切换慢速模式
+- **死区过滤** — 阈值 10000，回中自动停步
+- **轴值归一化** — 16 位无符号整数 (0~65535) 转换为有符号 (-32768~32767)
 
-### 🚀 丰富的运动模式
-- **基础移动**: 前进、后退、左转、右转
-- **侧向移动**: 左移、右移
-- **姿态控制**: X/Y/Z轴旋转、扭转动作
-- **特殊动作**: 攀爬、快速前进
-- **表演模式**: 自由律动、节拍摇摆、登场秀
-- **动作按钮模式切换**: 支持“持续”与“单次（单周期）”两种触发方式，普通动作与表演动作都会随设置切换执行方式
-- **单腿演示模式（仅六足）**: 可单独选择一条腿进行前后/左右/抬升演示
-- **四足多步态切换**: 支持 Trot / Walk / Gallop / Creep 步态模式切换
-- **动作序列（运动规划）**: 将多段动作按“周期/步数/距离/角度”等约束编排成序列，一键执行（见 `/planner`）
+### 开发计划
 
-### 🔧 精确校准系统
-- **实时校准** - 通过Web界面进行舵机角度可视化校准
-- **参数保存** - 校准数据自动保存到Flash存储
+- [ ] Web 界面蓝牙开关
+- [ ] 单腿控制模式（LT 按下启动，LB 切换控制腿）
+- [ ] 镜像模式（左右腿对称映射）
 
-### 🔋 安全保护功能
-- **电量显示** - 主控制页与运动规划页实时显示电压和估算电量百分比
-- **电池监测** - 实时监控电池电压
-- **低电压保护** - 自动LED警告和系统保护
+> 详见 [XBOX_GAMEPAD_DEVELOPMENT.md](XBOX_GAMEPAD_DEVELOPMENT.md)
 
-## 🏗️ 技术架构
+---
 
-### 硬件平台
-- **主控**: ESP32 (NodeMCU-32S)
-- **舵机驱动**: PCA9685 PWM驱动板
-- **通信**: WiFi + UART2串口
-- **存储**: SPIFFS文件系统
-- **语音拓展（可选）**: 小智 AI 拓展板
+## 2. OpenMV 视觉模块
 
-### 软件架构
+OpenMV Cam H7 Plus 通过 UART 将实时图像传输至 ESP32，再经 WiFi 推送到桌面应用。
+
+### 物理接线
+
+| OpenMV Cam H7 Plus | NodeMCU ESP32 | 说明 |
+|---|---|---|
+| **P4** (UART3 TX) | **GPIO33** | 图像数据传输 |
+| **P5** (UART3 RX) | **GPIO32** | 双向通讯（预留） |
+| **GND** | **GND** | 必须共地 |
+
+### 技术参数
+
+| 参数 | 值 |
+|---|---|
+| 分辨率 | QQVGA 160×120 |
+| 压缩格式 | JPEG (quality=50) |
+| 单帧大小 | ~1.8 KB |
+| 帧率 | ~6 FPS |
+| 波特率 | 115200 |
+
+### 帧协议
+
 ```
-firmware/
-├── src/
-│   ├── main.cpp          # 主程序入口
-│   ├── robot.h            # 统一机器人抽象接口（六足/四足共用）
-│   ├── hexapod.h/cpp      # 六足实现
-│   ├── quad_robot.h/cpp   # 四足实现
-│   ├── leg.h/cpp          # 单腿控制（六足/四足各自实现/复用）
-│   ├── movement*.h/cpp    # 运动控制算法与配置表
-│   ├── motion_controller* # 动作序列/运动规划执行
-│   └── calibration.h/cpp  # 校准系统
-├── include/              # 头文件
-└── lib/                  # 第三方库
+[0xFF 0xAA] [4字节长度(LE)] [JPEG数据] [0xFF 0xBB]
 ```
 
-## 🎯 运动控制算法
+### ESP32 串口资源分配
 
-### 运动学计算
-- **正运动学**: 根据关节角度计算足端位置
-- **逆运动学**: 根据目标位置计算关节角度
-- **坐标变换**: 世界坐标系与局部坐标系转换
+| 串口 | 引脚 | 用途 |
+|---|---|---|
+| Serial (UART0) | USB | 调试输出 |
+| Serial1 (UART1) | GPIO33(RX), GPIO32(TX) | OpenMV 摄像头通讯 |
+| Serial2 (UART2) | GPIO16(RX), GPIO17(TX) | 运动指令 |
 
-## 🖼️ 项目展示
+> 详见 [CHANGELOG_OPENMV_INTEGRATION.md](CHANGELOG_OPENMV_INTEGRATION.md)
 
-### 六足（NodeHexa）结构与硬件设计
+---
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="resource/45deg.jpg" alt="结构设计" width="300"/>
-      <br/>
-      <em>六足结构</em>
-    </td>
-    <td align="center">
-      <img src="resource/pcb-board.jpg" alt="PCB电路板" width="300"/>
-      <br/>
-      <em>PCB套件</em>
-    </td>
-    <td align="center">
-      <img src="resource/xiaozhi.jpg" alt="小智拓展板" width="300"/>
-      <br/>
-      <em>小智拓展</em>
-    </td>
-  </tr>
-</table>
+## 3. 桌面控制应用
 
-### 四足（NodeQuadMini）结构与硬件设计
+基于 PyQt5 的跨平台桌面控制软件，替代/增强 Web 控制界面。
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="resource/quad-45deg.png" alt="四足结构" width="300"/>
-      <br/>
-      <em>四足结构</em>
-    </td>
-    <td align="center">
-      <img src="resource/quad-frontal.png" alt="四足正面" width="300"/>
-      <br/>
-      <em>四足正面</em>
-    </td>
-    <td align="center">
-      <img src="resource/quad-pcb-board.png" alt="四足主板" width="300"/>
-      <br/>
-      <em>四足主板</em>
-    </td>
-  </tr>
-</table>
+### 主要特性
 
-> 说明：四足版本当前开源 **原理图** 供学习与维护参考；PCB 相关文件不开放。
->
-> 四足支持多种步态模式切换（Trot / Walk / Gallop / Creep）。
+- **实时图像显示** — 接收 ESP32 WebSocket 推送的 JPEG 帧并解码显示
+- **悬浮 UI** — FPS、姿态角度、电池电量等信息的半透明悬浮层
+- **键盘操控** — WASD 移动、QE 转向
+- **鼠标云台** — 鼠标控制摄像头云台角度，带准星瞄准线
+- **自动重连** — 断线后自动检测并恢复连接
+- **窗口自适应** — 图像自动缩放铺满窗口
 
-## 🛒 购买链接
-- **套件购买**: [NodeHexa 六足机器人套件](https://item.taobao.com/item.htm?ft=t&id=810056770425)、[NodeQuadMini 四足机器人套件](https://item.taobao.com/item.htm?id=1022920495655)
-- **电路板购买**：[NodeHexa 六足机器人电路板](https://item.taobao.com/item.htm?id=990145258187)
-- **舵机购买（强烈推荐）**: [MG90s 舵机](https://item.taobao.com/item.htm?id=978672014892)
-- **语音拓展板购买**: [小智AI拓展板（支持四、六足）](https://item.taobao.com/item.htm?id=989885356650)
+### 依赖安装
 
-> 强烈建议使用我们店铺上架的舵机：市面 MG90s 厂家众多，尺寸与质量差异较大；劣质舵机更容易过热/烧毁，后续成本更高。该链接为我们对多家产品测试对比后筛选的版本。
+```bash
+pip install PyQt5 websockets
+```
 
-<div align="center">
-  <img src="resource/step.jpg" alt="六足三维模型" width="400"/>
-  <br/>
-  <em>六足三维模型预览</em>
-</div>
+### 使用方法
 
-<div align="center">
-  <img src="resource/quad-step.jpg" alt="四足三维模型" width="400"/>
-  <br/>
-  <em>四足三维模型预览</em>
-</div>
+1. 电脑连接 `NodeHexa-7000` WiFi 热点
+2. 运行 `python main.py`
 
-## 📱 复刻教程
+> 详见 [DESKTOP_CONTROL_SOFTWARE.md](DESKTOP_CONTROL_SOFTWARE.md)
 
-<div align="center">
+---
 
-![公众号二维码](resource/qrcode_8cm.jpg)   
-*扫描二维码，关注**公众号**发送"**六足**"查看详细复刻**教程**、**交流群**！*
+## 项目结构
 
-</div>
+```
+NodeHexa-2.1.0/
+├── firmware/                    # ESP32 固件
+│   ├── src/main.cpp            # 主程序（含 OpenMVReceiveTask）
+│   ├── lib/hal/pwm.cpp         # PCA9685 舵机驱动（Lazy init）
+│   └── platformio.ini          # PlatformIO 配置
+├── openmv_firmware/             # OpenMV 脚本
+│   ├── image_sender.py         # 图像采集 + 帧协议发送
+│   └── simple_test.py          # UART 通讯测试
+├── desktop_app_python/          # 桌面控制应用
+│   ├── main.py                 # PyQt5 主程序
+│   ├── serial_monitor.py       # 串口监控工具
+│   └── requirements.txt        # Python 依赖
+├── CHANGELOG_OPENMV_INTEGRATION.md   # OpenMV 集成更新日志
+├── XBOX_GAMEPAD_DEVELOPMENT.md       # Xbox 手柄开发文档
+└── DESKTOP_CONTROL_SOFTWARE.md       # 桌面控制软件文档
+```
 
-或点击下方**【NodeHexa教程】**直接查看公众号文章列表：
+---
 
-<details>
-<summary><strong>📚 NodeHexa教程</strong></summary>
+## Web 控制界面
 
-### 系列教程
+项目同时保留原有的 Web 控制功能：
 
-1. [六足机器人NodeHexa复刻教程（一）器材准备篇](https://mp.weixin.qq.com/s/QebT1wd3da98jmFbrUHNdA)
-2. [六足机器人NodeHexa复刻教程（二）腿部组装篇](https://mp.weixin.qq.com/s/x1spemwsdwfix2QXKvCDqA)
-3. [六足机器人NodeHexa复刻教程（三）机身组装篇](https://mp.weixin.qq.com/s/Z3uXM__K4puC-hbytVeSNw)
-4. [六足机器人NodeHexa复刻教程（四）编译烧录篇](https://mp.weixin.qq.com/s/InIxQt30JFU6OhD7m3k71Q)
-5. [六足机器人NodeHexa复刻教程（五）功能调试篇](https://mp.weixin.qq.com/s/-viItGeh79Q6JDqvxl3oZQ)
+- **主控制页面** — 运动控制、姿态控制、表演模式、电量监控
+- **校准页面** — 实时舵机角度微调与参数保存
+- **运动规划页面** — 动作序列编排与一键执行
 
-### 功能演示
+连接 `NodeHexa` WiFi 后访问 `http://192.168.4.1` 即可使用。
 
-- [【开源】必看！小智 AI 语音交互的六足机器人，带详细复刻教程，做不出来找我"算账"！（B站视频）](https://www.bilibili.com/video/BV19R4gzzEH7)
-- [【开源】必看！小智 AI 语音控制六足机器人，开启未来趋势的探索之旅！（微信文章）](https://mp.weixin.qq.com/s/sWiMd9wZ3VoEhoh8ss6X7w)
+---
 
-</details>
+## 快速开始
 
-## 🚀 快速开始
+1. 使用 PlatformIO (VSCode) 编译并烧录 `firmware/` 到 ESP32
+2. 机器人开机后连接 WiFi 热点 `NodeHexa` (密码: `roboticscv666`)
+3. 访问 `http://192.168.4.1` 进行舵机校准
+4. （可选）Xbox 手柄按配对键，自动连接
+5. （可选）OpenMV 运行 `image_sender.py`
+6. （可选）电脑连接 WiFi 后运行 `desktop_app_python/main.py`
 
-### 开发环境要求
-- 推荐：安装 PlatformIO 插件的 VSCode IDE
+---
 
-### 连接和配置
-1. 机器人开机后连接WiFi热点 "NodeHexa" (密码: roboticscv666)
-2. 访问 `http://192.168.4.1` 进入控制界面
-3. 进行舵机校准 (访问 `/calibration` 页面)
-4. （可选）在设置中调整 WiFi AP、低电量保护和动作按钮模式
-5. （可选）打开运动规划页面 (访问 `/planner` 页面) 编排动作序列
-6. 开始控制机器人运动
+## 致谢
 
-## 📱 Web控制界面
-
-### 主控制页面
-- **运动控制**: 前进、后退、转向、侧移等
-- **姿态控制**: 三轴旋转和扭转动作
-- **表演模式**: 自由律动、节拍摇摆、登场秀
-- **单腿演示（仅六足）**: 单独选择一条腿并实时控制平移/抬升
-- **电量徽章**: 实时显示电压、估算电量和低电量状态
-- **设置入口**: 支持修改 WiFi AP、低电量保护、动作按钮模式，并查看固件版本
-- **校准功能**: 一键进入校准模式
-- **运动规划**: 进入 `/planner` 编排并发送动作序列（单段动作也可直接执行）
-
-### 校准页面
-- **实时调整**: 每个舵机的角度微调
-- **可视化反馈**: 实时显示调整效果
-- **参数保存**: 自动保存校准数据
-
-### 运动规划页面（动作序列）
-- **电量显示**: 与主页面同步显示实时电压与电量百分比
-- **单段动作**: 执行一段限定周期/步数/距离的动作（姿态类动作仅支持周期）
-- **动作序列**: 多段动作串行执行（限制最多 5 段）
-- **队列控制**: 支持追加、清空队列与紧急停止
-
-
-## ❓ 常见问题 (QA)
-
-### 1. 六足舵机驱动板注意事项
-**重要提醒**：左右两侧舵机驱动板电路设计完全相同，但在焊接元件时有细小差别。
-
-- 舵机驱动板边缘的1×4P和1×6P排针只焊一侧，左右舵机驱动板焊接位置相反。
-- DIY用户需要焊接左侧舵机驱动板的SJ1跳帽（购买套件的用户无需操作，出厂已焊接）。
-
-**作用说明**：焊接跳帽后，左侧舵机驱动板的IIC地址将与右侧不同，避免两块驱动板地址冲突。两块舵机驱动板通过IIC协议与主控通信，地址相同会导致通信异常。
-
-## 🎯 作者
-
-- **B站**: [@智造师_RoboticsCV](https://space.bilibili.com/智造师_RoboticsCV)
-- **GitHub**: [@ViolinLee](https://github.com/ViolinLee)
-- **微信公众号**: RoboticsCV
-
-## 🤝 贡献指南
-
-欢迎提交Issue和Pull Request来改进项目！
-
-## 🙏 致谢
-
-- 基于 [hexapod-v2-7697](https://github.com/SmallpTsai/hexapod-v2-7697) 项目二次开发
+- 基于 [hexapod-v2-7697](https://github.com/SmallpTsai/hexapod-v2-7697) 二次开发
 - 参考 [PiHexa18](https://github.com/ViolinLee/PiHexa18) 项目设计
-- 语音拓展来自 [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32)
-- 感谢所有开源社区的支持
+- Xbox 手柄库 [XboxSeriesXControllerESP32](https://github.com/asukiaaa/ESP32_connect_XboxController)
 
 ---
 
 <div align="center">
 
-**⭐ 如果这个项目对你有帮助，请给它一个星标！**
-
-**📺 关注B站 [@智造师_RoboticsCV](https://space.bilibili.com/智造师_RoboticsCV) 获取更多机器人项目**
-
-**💬 关注公众号 `RoboticsCV` 获取技术文章和教程**
+**如果这个项目对你有帮助，请给它一个星标！**
 
 Made with ❤️ by [ViolinLee](https://github.com/ViolinLee)
-
----
 
 Copyright © 2024 ViolinLee. Licensed under GPL-3.0.
 
