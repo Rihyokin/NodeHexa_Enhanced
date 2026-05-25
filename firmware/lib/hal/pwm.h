@@ -12,6 +12,7 @@ namespace hexapod { namespace hal {
         void setPWM(int index, int on, int off);
 
     private:
+        int i2cAddress_;
         void* obj_;
     };
 

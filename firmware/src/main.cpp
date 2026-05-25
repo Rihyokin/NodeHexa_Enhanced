@@ -124,6 +124,7 @@ static void clearRequestBodyChunk(AsyncWebServerRequest *request);
 
 void BatteryMonitorTask(void *pvParameters);
 void LEDControllerTask(void *pvParameters);
+void OpenMVReceiveTask(void *pvParameters);
 
 // 串口通讯相关函数声明
 void parseSerialMovementCommand(const String& jsonString);
@@ -170,6 +171,11 @@ void setup() {
   Serial2.setTimeout(100);
   Serial2.flush(); // 清空串口缓冲区
   Serial.printf("UART2 initialized: %d baud (GPIO16-RX, GPIO17-TX)\n", UART2_BAUD_RATE);
+
+  // 初始化Serial1用于OpenMV摄像头通信
+  Serial1.begin(115200, SERIAL_8N1, 33, 32);  // RX=GPIO33, TX=GPIO32 (匹配当前线序)
+  Serial1.setTimeout(50);
+  Serial.println("Serial1 initialized for OpenMV (GPIO33-RX, GPIO32-TX at 115200 baud)");
 
   // 初始化电池监测相关硬件
   pinMode(BAT_ADC, INPUT);
@@ -279,7 +285,16 @@ void setup() {
     "SerialCommand",
     4096,
     NULL,
-    2,  // 提高优先级到2，确保串口数据及时处理
+    2,
+    NULL
+  );
+
+  xTaskCreate(
+    OpenMVReceiveTask,
+    "OpenMVReceive",
+    4096,
+    NULL,
+    1,
     NULL
   );
 
@@ -1944,4 +1959,90 @@ void testUART2Connection() {
   }
   
   Serial.println("UART2 test completed");
+}
+
+#define OPENMV_FRAME_BUFFER_SIZE 32768
+
+void OpenMVReceiveTask(void *pvParameters) {
+  Serial.println("[OpenMV] Frame receiver task started");
+
+  enum { IDLE, START, LENGTH, DATA, END } state = IDLE;
+  static uint8_t *frameBuffer = nullptr;
+  static uint32_t frameLength = 0;
+  static uint32_t frameIndex = 0;
+  static uint8_t lengthBuf[4];
+  static uint8_t lengthIdx = 0;
+  static unsigned long lastHeartbeat = 0;
+  static uint32_t framesReceived = 0;
+
+  frameBuffer = new (std::nothrow) uint8_t[OPENMV_FRAME_BUFFER_SIZE];
+  if (!frameBuffer) {
+    Serial.println("[OpenMV] ERROR: Failed to allocate frame buffer!");
+    vTaskDelete(NULL);
+    return;
+  }
+
+  while (1) {
+    while (Serial1.available()) {
+      uint8_t c = Serial1.read();
+
+      switch (state) {
+        case IDLE:
+          if (c == 0xFF) state = START;
+          break;
+
+        case START:
+          if (c == 0xAA) {
+            state = LENGTH;
+            lengthIdx = 0;
+          } else if (c != 0xFF) {
+            state = IDLE;
+          }
+          break;
+
+        case LENGTH:
+          lengthBuf[lengthIdx++] = c;
+          if (lengthIdx >= 4) {
+            frameLength = ((uint32_t)lengthBuf[0]) |
+                         ((uint32_t)lengthBuf[1] << 8) |
+                         ((uint32_t)lengthBuf[2] << 16) |
+                         ((uint32_t)lengthBuf[3] << 24);
+            if (frameLength > 0 && frameLength <= OPENMV_FRAME_BUFFER_SIZE) {
+              state = DATA;
+              frameIndex = 0;
+            } else {
+              Serial.printf("[OpenMV] Invalid frame length: %u\n", frameLength);
+              state = IDLE;
+            }
+          }
+          break;
+
+        case DATA:
+          frameBuffer[frameIndex++] = c;
+          if (frameIndex >= frameLength) {
+            state = END;
+          }
+          break;
+
+        case END:
+          if (c == 0xBB) {
+            framesReceived++;
+            wsRoverCmd.binaryAll(frameBuffer, frameLength);
+            state = IDLE;
+          } else if (c != 0xFF) {
+            state = IDLE;
+          }
+          break;
+      }
+    }
+
+    unsigned long now = millis();
+    if (now - lastHeartbeat > 5000) {
+      Serial.printf("[OpenMV] Heartbeat: frames=%u, avail=%d\n",
+                    framesReceived, Serial1.available());
+      lastHeartbeat = now;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }
