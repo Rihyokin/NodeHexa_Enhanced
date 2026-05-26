@@ -227,6 +227,39 @@ void Controller::updateMotionCommand() {
     }
     previousRbState_ = currentRbState;
 
+    // LT 键触发云台控制模式
+    bool ltPressed = (getLeftTrigger() > 0x80);
+    gimbalModeActive_ = ltPressed;
+
+    // LB 键切换单腿控制模式（上升沿触发，toggle）
+    bool currentLbState = getButtonLB();
+    if (currentLbState && !previousLbState_) {
+        singleLegTriggered_ = !singleLegTriggered_;
+        LOG_INFO("Single leg mode toggled: %s", singleLegTriggered_ ? "ON" : "OFF");
+    }
+    previousLbState_ = currentLbState;
+
+    if (gimbalModeActive_) {
+        // 云台模式下：右摇杆控制云台，左摇杆仍控制转向
+        int16_t lxRaw = getLeftStickX();
+        auto normAxis = [](int16_t v) -> float {
+            if (v > 0) return (v >= 32767) ? 1.0f : (float)v / 32767.0f;
+            if (v < 0) return (v <= -32768) ? -1.0f : (float)v / 32767.0f;
+            return 0.0f;
+        };
+        float deadzoneNorm = (float)kDeadzoneThreshold / 32767.0f;
+        float lxNorm = normAxis(lxRaw);
+        if (fabs(lxNorm) > deadzoneNorm) {
+            cmd.turn = (lxNorm > 0) ? 1 : -1;
+        }
+        cmd.forwardBackward = 0;
+        cmd.leftRight = 0;
+        cmd.rtPressed = false;
+        cmd.speedLevel = hexapod::SPEED_SLOWEST;
+        g_motionCommand = cmd;
+        return;
+    }
+
     int16_t ryRaw = getRightStickY();
     int16_t rxRaw = getRightStickX();
     int16_t lxRaw = getLeftStickX();
@@ -350,6 +383,26 @@ int16_t Controller::rightStickYToSigned(int16_t raw) const {
 
 const MotionCommand& getMotionCommand() {
     return g_motionCommand;
+}
+
+bool Controller::isGimbalModeActive() const {
+    return gimbalModeActive_;
+}
+
+bool Controller::isSingleLegTriggered() const {
+    return singleLegTriggered_;
+}
+
+float Controller::getGimbalPanNormalized() const {
+    if (!xboxController_ || !isConnected_) return 0.0f;
+    int16_t raw = rightStickXToSigned(xboxController_->xboxNotif.joyRHori);
+    return normalizeAxis(raw);
+}
+
+float Controller::getGimbalTiltNormalized() const {
+    if (!xboxController_ || !isConnected_) return 0.0f;
+    int16_t raw = rightStickYToSigned(xboxController_->xboxNotif.joyRVert);
+    return normalizeAxis(raw);
 }
 
 }  // namespace gamepad

@@ -53,6 +53,12 @@ public:
     void startConnection();
     void disconnect();
 
+    bool isGimbalModeActive() const;
+    bool isSingleLegTriggered() const;
+
+    float getGimbalPanNormalized() const;
+    float getGimbalTiltNormalized() const;
+
 private:
     Controller() = default;
     Controller(const Controller&) = delete;
@@ -76,8 +82,15 @@ private:
     static constexpr int16_t kDeadzoneThreshold = 5000;
     
     // 速度模式切换
-    bool rtModeIsFast_ = true;  // true = 极速模式, false = 慢速模式
-    bool previousRbState_ = false;  // 上一帧RB状态，用于检测上升沿
+    bool rtModeIsFast_ = true;
+    bool previousRbState_ = false;
+
+    // 云台控制模式（LT触发）
+    bool gimbalModeActive_ = false;
+
+    // 单腿控制模式切换（LB触发，上升沿检测）
+    bool previousLbState_ = false;
+    bool singleLegTriggered_ = false;
 };
 
 Controller& controller();

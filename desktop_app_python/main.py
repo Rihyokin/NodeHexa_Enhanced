@@ -248,7 +248,7 @@ class MainWindow(QMainWindow):
         self.status_overlay.setStyleSheet("color: red; font-size: 24px; font-weight: bold;")
         self.status_overlay.setAlignment(Qt.AlignCenter)
         self.status_overlay.show()
-        self.status_overlay.setText("连接丢失")
+        self.status_overlay.setText("连接已丢失，尝试重连中...")
 
         self.operation_timer = QTimer()
         self.operation_timer.timeout.connect(self.check_operation)
@@ -488,8 +488,10 @@ class MainWindow(QMainWindow):
         self.add_log("WebSocket已断开")
         
     def on_ws_connection_lost(self):
+        self.last_image_data = None
+        self.pixmap_item.setPixmap(QPixmap())
+        self.status_overlay.setText("连接已丢失，尝试重连中...")
         self.status_overlay.show()
-        self.status_overlay.setText("连接丢失")
         
     def on_ws_status_received(self, data):
         if 'power' in data:

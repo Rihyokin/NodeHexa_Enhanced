@@ -292,7 +292,7 @@ void setup() {
   xTaskCreate(
     OpenMVReceiveTask,
     "OpenMVReceive",
-    4096,
+    8192,
     NULL,
     1,
     NULL
@@ -403,6 +403,73 @@ void normal_loop() {
 
   // 总是调用手柄 onLoopTick()（连接过程中也需要，低电量时也需要）
   gamepad::controller().onLoopTick();
+
+  // LB toggle 单腿控制模式
+  {
+    static bool wasSingleLegActive = false;
+    bool singleLegNow = gamepad::controller().isSingleLegTriggered();
+    if (singleLegNow != wasSingleLegActive) {
+      wasSingleLegActive = singleLegNow;
+      if (singleLegNow) {
+        String err;
+        singleleg::controller().start(3, err);
+        if (err.length() > 0) {
+          Serial.printf("[ERROR] Single leg start failed: %s\n", err.c_str());
+        } else {
+          LOG_INFO("Single leg mode started via gamepad");
+        }
+      } else {
+        singleleg::controller().stop();
+        LOG_INFO("Single leg mode stopped via gamepad");
+      }
+    }
+  }
+
+  // 云台控制模式（LT 触发，右摇杆控制）
+  if (gamepad::controller().isGimbalModeActive()) {
+    static float currentPan = 0.0f, currentTilt = 0.0f;
+    static unsigned long lastGimbalSend = 0;
+
+    float panNorm = gamepad::controller().getGimbalPanNormalized();
+    float tiltNorm = gamepad::controller().getGimbalTiltNormalized();
+
+    float targetPan = panNorm * 80.0f;
+    float targetTilt = tiltNorm * 80.0f;
+
+    const float MAX_RATE = 80.0f / 1.5f;
+    float dt = REACT_DELAY / 1000.0f;
+    float maxDelta = MAX_RATE * dt;
+
+    auto ramp = [&](float& current, float target) {
+      float diff = target - current;
+      if (fabs(diff) > maxDelta) {
+        current += (diff > 0 ? maxDelta : -maxDelta);
+      } else {
+        current = target;
+      }
+    };
+
+    ramp(currentPan, targetPan);
+    ramp(currentTilt, targetTilt);
+
+    currentPan = constrain(currentPan, -80.0f, 80.0f);
+    currentTilt = constrain(currentTilt, -80.0f, 80.0f);
+
+    unsigned long now = millis();
+    if (now - lastGimbalSend >= 50) {
+      Serial1.printf("$G,%d,%d\n", (int)currentPan, (int)currentTilt);
+      lastGimbalSend = now;
+    }
+  }
+
+  // 单腿模式下，从手柄右摇杆喂入控制值
+  if (singleleg::controller().isActive() && gamepad::controller().isConnected()) {
+    singleleg::InputAxes axes;
+    axes.lx = gamepad::controller().getGimbalPanNormalized() * 32767.0f;
+    axes.ly = gamepad::controller().getGimbalTiltNormalized() * 32767.0f;
+    axes.rz = 0;
+    singleleg::controller().updateInput(axes);
+  }
 
   if (!lowBattery && !singleleg::controller().isActive()) {
     // 手柄连接时：处理手柄输入
@@ -1961,7 +2028,7 @@ void testUART2Connection() {
   Serial.println("UART2 test completed");
 }
 
-#define OPENMV_FRAME_BUFFER_SIZE 32768
+#define OPENMV_FRAME_BUFFER_SIZE 8192
 
 void OpenMVReceiveTask(void *pvParameters) {
   Serial.println("[OpenMV] Frame receiver task started");
